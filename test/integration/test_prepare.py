@@ -21,17 +21,24 @@ import ezomero
 import pytest
 import os
 
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+syslog_handler = logging.handlers.SysLogHandler()
+syslog_handler.setLevel("DEBUG")
+logger.addHandler(syslog_handler)
+
 TEST_FOLDERS = [
-        "test/data/prepare/",
+    "test/data/prepare/",
 ]
 
-TEST_FILELISTS = [
-        "test/data/prepare/filelist.txt"
-]
+TEST_FILELISTS = ["test/data/prepare/filelist.txt"]
 
 
 class TestPrepare(CLITest):
-
     def setup_method(self, method):
         super(TestPrepare, self).setup_method(method)
         self.cli.register("transfer", TransferControl, "TEST")
@@ -44,35 +51,40 @@ class TestPrepare(CLITest):
         pjs = self.gw.getObjects("Project")
         for p in pjs:
             pj_id = p.id
-            print(f"deleting project {pj_id}")
-            self.gw.deleteObjects("Project", [pj_id], deleteAnns=True,
-                                  deleteChildren=True, wait=True)
+            logger.info(f"deleting project {pj_id}")
+            self.gw.deleteObjects(
+                "Project", [pj_id], deleteAnns=True, deleteChildren=True, wait=True
+            )
         ds = self.gw.getObjects("Dataset")
         for d in ds:
             ds_id = d.id
-            print(f"deleting dataset {ds_id}")
-            self.gw.deleteObjects("Dataset", [ds_id], deleteAnns=True,
-                                  deleteChildren=True, wait=True)
+            logger.info(f"deleting dataset {ds_id}")
+            self.gw.deleteObjects(
+                "Dataset", [ds_id], deleteAnns=True, deleteChildren=True, wait=True
+            )
         scs = self.gw.getObjects("Screen")
         for sc in scs:
             sc_id = sc.id
-            print(f"deleting screen {sc_id}")
-            self.gw.deleteObjects("Screen", [sc_id], deleteAnns=True,
-                                  deleteChildren=True, wait=True)
+            logger.info(f"deleting screen {sc_id}")
+            self.gw.deleteObjects(
+                "Screen", [sc_id], deleteAnns=True, deleteChildren=True, wait=True
+            )
         pls = self.gw.getObjects("Plate")
         for pl in pls:
             pl_id = pl.id
-            print(f"deleting plate {pl_id}")
-            self.gw.deleteObjects("Plate", [pl_id], deleteAnns=True,
-                                  deleteChildren=True, wait=True)
+            logger.info(f"deleting plate {pl_id}")
+            self.gw.deleteObjects(
+                "Plate", [pl_id], deleteAnns=True, deleteChildren=True, wait=True
+            )
         ims = self.gw.getObjects("Image")
         im_ids = []
         for im in ims:
             im_ids.append(im.id)
-            print(f"deleting image {im.id}")
+            logger.info(f"deleting image {im.id}")
         if im_ids:
-            self.gw.deleteObjects("Image", im_ids, deleteAnns=True,
-                                  deleteChildren=True, wait=True)
+            self.gw.deleteObjects(
+                "Image", im_ids, deleteAnns=True, deleteChildren=True, wait=True
+            )
 
     def test_non_existing_folder(self):
         self.args += ["prepare", "./fakefoldername/"]
@@ -81,76 +93,76 @@ class TestPrepare(CLITest):
 
     def test_dummy_prepare(self):
         folder = Path(TEST_FOLDERS[0])
-        if Path(folder / 'transfer.xml').exists():
-            print('transfer.xml exists! deleting.')
-            os.remove(str(folder / 'transfer.xml'))
+        if Path(folder / "transfer.xml").exists():
+            logger.info("transfer.xml exists! deleting.")
+            os.remove(str(folder / "transfer.xml"))
         args = self.args + ["prepare", str(folder)]
         self.cli.invoke(args, strict=True)
-        assert Path(folder / 'transfer.xml').exists()
-        assert os.path.getsize(str(folder / 'transfer.xml')) > 0
+        assert Path(folder / "transfer.xml").exists()
+        assert os.path.getsize(str(folder / "transfer.xml")) > 0
         args = self.args + ["unpack", "--folder", str(folder)]
         with pytest.raises(KeyError):
             self.cli.invoke(args, strict=True)
         self.delete_all()
-        if Path(folder / 'transfer.xml').exists():
-            os.remove(str(folder / 'transfer.xml'))
+        if Path(folder / "transfer.xml").exists():
+            os.remove(str(folder / "transfer.xml"))
 
-    @pytest.mark.parametrize('folder', sorted(TEST_FOLDERS))
+    @pytest.mark.parametrize("folder", sorted(TEST_FOLDERS))
     def test_prepare_clean(self, folder):
         folder = Path(folder)
-        if Path(folder / 'transfer.xml').exists():
-            print('transfer.xml exists! deleting.')
-            os.remove(str(folder / 'transfer.xml'))
+        if Path(folder / "transfer.xml").exists():
+            logger.info("transfer.xml exists! deleting.")
+            os.remove(str(folder / "transfer.xml"))
         args = self.args + ["prepare", str(folder)]
         self.cli.invoke(args, strict=True)
-        assert Path(folder / 'transfer.xml').exists()
-        assert os.path.getsize(str(folder / 'transfer.xml')) > 0
+        assert Path(folder / "transfer.xml").exists()
+        assert os.path.getsize(str(folder / "transfer.xml")) > 0
         args = self.args + ["unpack", "--folder", str(folder)]
         self.cli.invoke(args, strict=True)
         self.run_asserts_clean()
         self.delete_all()
-        if Path(folder / 'transfer.xml').exists():
-            os.remove(str(folder / 'transfer.xml'))
+        if Path(folder / "transfer.xml").exists():
+            os.remove(str(folder / "transfer.xml"))
 
-    @pytest.mark.parametrize('folder', sorted(TEST_FOLDERS))
+    @pytest.mark.parametrize("folder", sorted(TEST_FOLDERS))
     def test_prepare_edited(self, folder):
         folder = Path(folder)
-        if Path(folder / 'transfer.xml').exists():
-            os.remove(str(folder / 'transfer.xml'))
+        if Path(folder / "transfer.xml").exists():
+            os.remove(str(folder / "transfer.xml"))
         args = self.args + ["prepare", str(folder)]
         self.cli.invoke(args, strict=True)
-        assert os.path.exists(str(folder / 'transfer.xml'))
-        assert os.path.getsize(str(folder / 'transfer.xml')) > 0
-        self.edit_xml(str(folder / 'transfer.xml'))
+        assert os.path.exists(str(folder / "transfer.xml"))
+        assert os.path.getsize(str(folder / "transfer.xml")) > 0
+        self.edit_xml(str(folder / "transfer.xml"))
         args = self.args + ["unpack", "--folder", str(folder)]
         self.cli.invoke(args, strict=True)
         self.run_asserts_edited()
         self.delete_all()
-        if Path(folder / 'transfer.xml').exists():
-            os.remove(str(folder / 'transfer.xml'))
+        if Path(folder / "transfer.xml").exists():
+            os.remove(str(folder / "transfer.xml"))
 
-    @pytest.mark.parametrize('filelist', sorted(TEST_FILELISTS))
+    @pytest.mark.parametrize("filelist", sorted(TEST_FILELISTS))
     def test_prepare_filelist(self, filelist):
         folder = Path(filelist).parent
-        if Path(folder / 'transfer.xml').exists():
-            print('transfer.xml exists! deleting.')
-            os.remove(str(folder / 'transfer.xml'))
+        if Path(folder / "transfer.xml").exists():
+            logger.info("transfer.xml exists! deleting.")
+            os.remove(str(folder / "transfer.xml"))
         args = self.args + ["prepare", "--filelist", str(filelist)]
         self.cli.invoke(args, strict=True)
-        assert Path(folder / 'transfer.xml').exists()
-        assert os.path.getsize(str(folder / 'transfer.xml')) > 0
+        assert Path(folder / "transfer.xml").exists()
+        assert os.path.getsize(str(folder / "transfer.xml")) > 0
         args = self.args + ["unpack", "--folder", str(folder)]
         self.cli.invoke(args, strict=True)
         self.run_asserts_filelist()
         self.delete_all()
-        if Path(folder / 'transfer.xml').exists():
-            os.remove(str(folder / 'transfer.xml'))
+        if Path(folder / "transfer.xml").exists():
+            os.remove(str(folder / "transfer.xml"))
 
     def run_asserts_clean(self):
         img_ids = ezomero.get_image_ids(self.gw)
         assert len(img_ids) == 3
         img_names = []
-        for i in (img_ids):
+        for i in img_ids:
             img, _ = ezomero.get_image(self.gw, i, no_pixels=True)
             img_names.append(img.getName())
         assert "vsi-ets-test-jpg2k.vsi [macro image]" in img_names
@@ -159,7 +171,7 @@ class TestPrepare(CLITest):
         img_ids = ezomero.get_image_ids(self.gw)
         assert len(img_ids) == 1
         img_names = []
-        for i in (img_ids):
+        for i in img_ids:
             img, _ = ezomero.get_image(self.gw, i, no_pixels=True)
             img_names.append(img.getName())
         assert "vsi-ets-test-jpg2k.vsi [macro image]" not in img_names
@@ -174,7 +186,7 @@ class TestPrepare(CLITest):
         assert len(ds_ids) == 1
         img_ids = ezomero.get_image_ids(self.gw, dataset=ds_ids[0])
         img_names = []
-        for i in (img_ids):
+        for i in img_ids:
             img, _ = ezomero.get_image(self.gw, i, no_pixels=True)
             img_name = img.getName()
             img_names.append(img_name)
@@ -184,14 +196,13 @@ class TestPrepare(CLITest):
                 tag = ezomero.get_tag(self.gw, tags[0])
                 assert tag == "tag for img"
             elif img_name == "edited image name":
-                kvs = ezomero.get_map_annotation_ids(self.gw, "Image",
-                                                     img.getId())
+                kvs = ezomero.get_map_annotation_ids(self.gw, "Image", img.getId())
                 kvs = sorted(kvs)
                 assert len(kvs) == 2
                 kv = ezomero.get_map_annotation(self.gw, kvs[-1])
                 assert len(kv) == 2
-                assert kv['key1'] == "value1"
-                assert kv['key2'] == "2"
+                assert kv["key1"] == "value1"
+                assert kv["key2"] == "2"
             elif img_name == "vsi-ets-test-jpg2k.vsi [macro image]":
                 rois = ezomero.get_roi_ids(self.gw, img.getId())
                 assert len(rois) == 1
@@ -218,11 +229,9 @@ class TestPrepare(CLITest):
         ann_count = uuid4().int >> 64
         new_proj = Project(id="Project:1", name="edited project")
         new_ds = Dataset(id="Dataset:1", name="edited dataset")
-        newtag1 = TagAnnotation(id=f"Annotation:{ann_count}",
-                                value="tag for proj")
+        newtag1 = TagAnnotation(id=f"Annotation:{ann_count}", value="tag for proj")
         ann_count += 1
-        newtag2 = TagAnnotation(id=f"Annotation:{ann_count}",
-                                value="tag for img")
+        newtag2 = TagAnnotation(id=f"Annotation:{ann_count}", value="tag for img")
         ann_count += 1
         new_proj.annotation_refs.append(AnnotationRef(id=newtag1.id))
         md_dict = {"key1": "value1", "key2": 2}
@@ -231,9 +240,8 @@ class TestPrepare(CLITest):
             if _value:
                 mmap.append(M(k=_key, value=str(_value)))
             else:
-                mmap.append(M(k=_key, value=''))
-        mapann = MapAnnotation(id=f"Annotation:{ann_count}",
-                               value=Map(ms=mmap))
+                mmap.append(M(k=_key, value=""))
+        mapann = MapAnnotation(id=f"Annotation:{ann_count}", value=Map(ms=mmap))
         rect = Rectangle(id="Shape:1", x=1, y=2, width=3, height=4)
         roi = ROI(id="ROI:1", union=[rect])
         ome.rois.append(roi)
@@ -259,6 +267,6 @@ class TestPrepare(CLITest):
         new_scr = Screen(id="Screen:1", name="edited screen")
         new_scr.plate_refs.append(PlateRef(id=ome.plates[0].id))
         ome.screens.append(new_scr)
-        with open(filename, 'w') as fp:
-            print(to_xml(ome), file=fp)
+        with open(filename, "w") as fp:
+            logger.info(to_xml(ome), file=fp)
             fp.close()
