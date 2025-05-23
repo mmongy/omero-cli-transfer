@@ -29,9 +29,18 @@ import os
 import copy
 import re
 
+import logging
 
-def create_or_set_projects(pjs: List[Project], conn: BlitzGateway,
-                           merge: bool) -> dict:
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+syslog_handler = logging.handlers.SysLogHandler()
+syslog_handler.setLevel("DEBUG")
+logger.addHandler(syslog_handler)
+
+
+def create_or_set_projects(pjs: List[Project], conn: BlitzGateway, merge: bool) -> dict:
     pj_map = {}
     if not merge:
         pj_map = create_projects(pjs, conn)
@@ -55,14 +64,13 @@ def create_projects(pjs: List[Project], conn: BlitzGateway) -> dict:
 def find_project(pj: Project, conn: BlitzGateway) -> int:
     id = 0
     my_exp_id = conn.getUser().getId()
-    for p in conn.getObjects("Project", opts={'owner': my_exp_id}):
+    for p in conn.getObjects("Project", opts={"owner": my_exp_id}):
         if p.getName() == pj.name:
             id = p.getId()
     return id
 
 
-def create_or_set_screens(scrs: List[Screen], conn: BlitzGateway, merge: bool
-                          ) -> dict:
+def create_or_set_screens(scrs: List[Screen], conn: BlitzGateway, merge: bool) -> dict:
     scr_map = {}
     if not merge:
         scr_map = create_screens(scrs, conn)
@@ -86,14 +94,15 @@ def create_screens(scrs: List[Screen], conn: BlitzGateway) -> dict:
 def find_screen(sc: Screen, conn: BlitzGateway) -> int:
     id = 0
     my_exp_id = conn.getUser().getId()
-    for s in conn.getObjects("Screen", opts={'owner': my_exp_id}):
+    for s in conn.getObjects("Screen", opts={"owner": my_exp_id}):
         if s.getName() == sc.name:
             id = s.getId()
     return id
 
 
-def create_or_set_datasets(dss: List[Dataset], pjs: List[Project],
-                           conn: BlitzGateway, merge: bool) -> dict:
+def create_or_set_datasets(
+    dss: List[Dataset], pjs: List[Project], conn: BlitzGateway, merge: bool
+) -> dict:
     ds_map = {}
     if not merge:
         ds_map = create_datasets(dss, conn)
@@ -138,7 +147,7 @@ def find_dataset(ds: Dataset, pjs: List[Project], conn: BlitzGateway) -> int:
                 orphan = False
     if not orphan:
         for pj in pjs:
-            for p in conn.getObjects("Project", opts={'owner': my_exp_id}):
+            for p in conn.getObjects("Project", opts={"owner": my_exp_id}):
                 if p.getName() == pj.name:
                     for dsref in pj.dataset_refs:
                         if dsref.id == ds.id:
@@ -146,16 +155,23 @@ def find_dataset(ds: Dataset, pjs: List[Project], conn: BlitzGateway) -> int:
                                 if ds.name == ds_rem.getName():
                                     id = ds_rem.getId()
     else:
-        for d in conn.getObjects("Dataset", opts={'owner': my_exp_id,
-                                                  'orphaned': True}):
+        for d in conn.getObjects(
+            "Dataset", opts={"owner": my_exp_id, "orphaned": True}
+        ):
             if d.getName() == ds.name:
                 id = d.getId()
     return id
 
 
-def create_annotations(ans: List[Annotation], conn: BlitzGateway, hash: str,
-                       folder: str, figure: bool, img_map: dict,
-                       metadata: List[str]) -> dict:
+def create_annotations(
+    ans: List[Annotation],
+    conn: BlitzGateway,
+    hash: str,
+    folder: str,
+    figure: bool,
+    img_map: dict,
+    metadata: List[str],
+) -> dict:
     ann_map = {}
     for an in ans:
         if isinstance(an, TagAnnotation):
@@ -209,11 +225,10 @@ def create_annotations(ans: List[Annotation], conn: BlitzGateway, hash: str,
             ann_map[an.id] = file_ann.getId()
         elif isinstance(an, XMLAnnotation):
             # pass if path, use if provenance metadata
-            tree = ETree.fromstring(to_xml(an.value,
-                                           canonicalize=True))
+            tree = ETree.fromstring(to_xml(an.value, canonicalize=True))
             is_metadata = False
             for el in tree:
-                if el.tag.rpartition('}')[2] == "CLITransferMetadata":
+                if el.tag.rpartition("}")[2] == "CLITransferMetadata":
                     is_metadata = True
             if is_metadata:
                 map_ann = MapAnnotationWrapper(conn)
@@ -221,7 +236,7 @@ def create_annotations(ans: List[Annotation], conn: BlitzGateway, hash: str,
                 map_ann.setNs(namespace)
                 key_value_data = []
                 if not metadata:
-                    key_value_data.append(['empty_metadata', "True"])
+                    key_value_data.append(["empty_metadata", "True"])
                 else:
                     key_value_data = parse_xml_metadata(an, metadata, hash)
                 map_ann.setValue(key_value_data)
@@ -230,18 +245,18 @@ def create_annotations(ans: List[Annotation], conn: BlitzGateway, hash: str,
     return ann_map
 
 
-def parse_xml_metadata(ann: XMLAnnotation,
-                       metadata: List[str],
-                       hash: str) -> List[List[str]]:
+def parse_xml_metadata(
+    ann: XMLAnnotation, metadata: List[str], hash: str
+) -> List[List[str]]:
     kv_data = []
     tree = ETree.fromstring(to_xml(ann.value, canonicalize=True))
     for el in tree:
-        if el.tag.rpartition('}')[2] == "CLITransferMetadata":
+        if el.tag.rpartition("}")[2] == "CLITransferMetadata":
             for el2 in el:
-                item = el2.tag.rpartition('}')[2]
+                item = el2.tag.rpartition("}")[2]
                 val = el2.text
                 if item == "md5" and "md5" in metadata:
-                    kv_data.append(['md5', hash])
+                    kv_data.append(["md5", hash])
                 if item == "origin_image_id" and "img_id" in metadata:
                     kv_data.append([item, val])
                 if item == "origin_plate_id" and "plate_id" in metadata:
@@ -263,8 +278,9 @@ def parse_xml_metadata(ann: XMLAnnotation,
     return kv_data
 
 
-def get_server_path(anrefs: List[AnnotationRef],
-                    ans: List[Annotation]) -> Union[str, None]:
+def get_server_path(
+    anrefs: List[AnnotationRef], ans: List[Annotation]
+) -> Union[str, None]:
     fpath = None
     xml_ids = []
     for an in anrefs:
@@ -277,84 +293,84 @@ def get_server_path(anrefs: List[AnnotationRef],
     for an_loop in ans:
         if an_loop.id in xml_ids:
             if not fpath:
-                tree = ETree.fromstring(to_xml(an_loop.value,
-                                               canonicalize=True))
+                tree = ETree.fromstring(to_xml(an_loop.value, canonicalize=True))
                 for el in tree:
-                    if el.tag.rpartition('}')[2] == "CLITransferServerPath":
+                    if el.tag.rpartition("}")[2] == "CLITransferServerPath":
                         for el2 in el:
-                            if el2.tag.rpartition('}')[2] == "Path":
+                            if el2.tag.rpartition("}")[2] == "Path":
                                 fpath = el2.text
     return fpath
 
 
-def update_figure_refs(ann: FileAnnotation, ans: List[Annotation],
-                       img_map: dict, folder: str):
-    curr_folder = str(Path('.').resolve())
+def update_figure_refs(
+    ann: FileAnnotation, ans: List[Annotation], img_map: dict, folder: str
+):
+    curr_folder = str(Path(".").resolve())
     fpath = get_server_path(ann.annotation_refs, ans)
     if fpath:
-        dest_path = str(os.path.join(curr_folder, folder,  '.', fpath))
-        with open(dest_path, 'r') as file:
+        dest_path = str(os.path.join(curr_folder, folder, ".", fpath))
+        with open(dest_path, "r") as file:
             filedata = file.read()
         for src_id, dest_id in img_map.items():
             clean_id = int(src_id.split(":")[-1])
-            src_str = f"\"imageId\": {clean_id},"
-            dest_str = f"\"imageId\": {dest_id},"
+            src_str = f'"imageId": {clean_id},'
+            dest_str = f'"imageId": {dest_id},'
             filedata = filedata.replace(src_str, dest_str)
-        for fig in re.finditer("\"imageId\": ([0-9]+),", filedata):
+        for fig in re.finditer('"imageId": ([0-9]+),', filedata):
             if int(fig.group(1)) not in img_map.values():
-                src_str = f"\"imageId\": {fig.group(1)},"
-                dest_str = f"\"imageId\": {str(-1)},"
+                src_str = f'"imageId": {fig.group(1)},'
+                dest_str = f'"imageId": {str(-1)},'
                 filedata = filedata.replace(src_str, dest_str)
-        with open(dest_path, 'w') as file:
+        with open(dest_path, "w") as file:
             file.write(filedata)
     return
 
 
-def create_original_file(ann: FileAnnotation, ans: List[Annotation],
-                         conn: BlitzGateway, folder: str
-                         ) -> OriginalFileWrapper:
-    curr_folder = str(Path('.').resolve())
+def create_original_file(
+    ann: FileAnnotation, ans: List[Annotation], conn: BlitzGateway, folder: str
+) -> OriginalFileWrapper:
+    curr_folder = str(Path(".").resolve())
     fpath = get_server_path(ann.annotation_refs, ans)
-    dest_path = str(os.path.join(curr_folder, folder,  '.', fpath))
+    dest_path = str(os.path.join(curr_folder, folder, ".", fpath))
     ofile = conn.createOriginalFileFromLocalFile(dest_path)
     return ofile
 
 
-def create_plate_map(ome: OME, img_map: dict, conn: BlitzGateway
-                     ) -> Tuple[dict, OME]:
+def create_plate_map(ome: OME, img_map: dict, conn: BlitzGateway) -> Tuple[dict, OME]:
     newome = copy.deepcopy(ome)
     plate_map = {}
     map_ref_ids = []
     for plate in newome.plates:
         ann_ids = [i.id for i in plate.annotation_refs]
         for ann in newome.structured_annotations:
-            if (ann.id in ann_ids and
-                    isinstance(ann, XMLAnnotation)):
-                tree = ETree.fromstring(to_xml(ann.value,
-                                               canonicalize=True))
+            if ann.id in ann_ids and isinstance(ann, XMLAnnotation):
+                tree = ETree.fromstring(to_xml(ann.value, canonicalize=True))
                 is_metadata = False
                 for el in tree:
-                    if el.tag.rpartition('}')[2] == "CLITransferMetadata":
+                    if el.tag.rpartition("}")[2] == "CLITransferMetadata":
                         is_metadata = True
                 if not is_metadata:
                     newome.structured_annotations.remove(ann)
                     map_ref_ids.append(ann.id)
-                    file_path = get_server_path(plate.annotation_refs,
-                                                ome.structured_annotations)
-                    annref = next(filter(lambda x: x.id == ann.id,
-                                         plate.annotation_refs))
-                    newplate = next(filter(lambda x: x.id == plate.id,
-                                           newome.plates))
+                    file_path = get_server_path(
+                        plate.annotation_refs, ome.structured_annotations
+                    )
+                    annref = next(
+                        filter(lambda x: x.id == ann.id, plate.annotation_refs)
+                    )
+                    newplate = next(filter(lambda x: x.id == plate.id, newome.plates))
                     newplate.annotation_refs.remove(annref)
         q = conn.getQueryService()
         params = Parameters()
         if not file_path:
-            raise ValueError(f"Plate ID {plate.id} does not have a \
-                             XMLAnnotation with a file path!")
-        path_query = str(file_path).strip('/')
-        if path_query.endswith('mock_folder'):
+            raise ValueError(
+                f"Plate ID {plate.id} does not have a \
+                             XMLAnnotation with a file path!"
+            )
+        path_query = str(file_path).strip("/")
+        if path_query.endswith("mock_folder"):
             path_query = path_query.rstrip("mock_folder")
-        params.map = {"cpath": rstring('%%%s%%' % path_query)}
+        params.map = {"cpath": rstring("%%%s%%" % path_query)}
         results = q.projection(
             "SELECT p.id FROM Plate p"
             " JOIN p.plateAcquisitions a"
@@ -364,8 +380,8 @@ def create_plate_map(ome: OME, img_map: dict, conn: BlitzGateway
             " JOIN fs.usedFiles u"
             " WHERE u.clientPath LIKE :cpath",
             params,
-            conn.SERVICE_OPTS
-            )
+            conn.SERVICE_OPTS,
+        )
         all_plate_ids = list(set(sorted([r[0].val for r in results])))
         plate_ids = []
         for pl_id in all_plate_ids:
@@ -376,8 +392,7 @@ def create_plate_map(ome: OME, img_map: dict, conn: BlitzGateway
                 is_annotated = False
                 for ann in anns:
                     ann_content = conn.getObject("MapAnnotation", ann)
-                    if ann_content.getNs() == \
-                            'openmicroscopy.org/cli/transfer':
+                    if ann_content.getNs() == "openmicroscopy.org/cli/transfer":
                         is_annotated = True
                 if not is_annotated:
                     plate_ids.append(pl_id)
@@ -395,8 +410,7 @@ def create_plate_map(ome: OME, img_map: dict, conn: BlitzGateway
     return plate_map, newome
 
 
-def create_plate_from_images(plate: Plate, img_map: dict, conn: BlitzGateway
-                             ) -> int:
+def create_plate_from_images(plate: Plate, img_map: dict, conn: BlitzGateway) -> int:
     plateobj = PlateI()
     plateobj.name = RStringI(plate.name)
     plateobj = conn.getUpdateService().saveAndReturnObject(plateobj)
@@ -407,13 +421,13 @@ def create_plate_from_images(plate: Plate, img_map: dict, conn: BlitzGateway
             if ws.image_ref:
                 for imgref in ws.image_ref:
                     img_ids.append(img_map[imgref[-1]])
-        add_image_to_plate(img_ids, plate_id, well.column,
-                           well.row, conn)
+        add_image_to_plate(img_ids, plate_id, well.column, well.row, conn)
     return plate_id
 
 
-def add_image_to_plate(image_ids: List[int], plate_id: int, column: int,
-                       row: int, conn: BlitzGateway) -> bool:
+def add_image_to_plate(
+    image_ids: List[int], plate_id: int, column: int, row: int, conn: BlitzGateway
+) -> bool:
     """
     Add the Images to a Plate, creating a new well at the specified column and
     row
@@ -464,10 +478,17 @@ def create_shapes(roi: ROI) -> List[Shape]:
         else:
             stroke_width = 1
         if isinstance(shape, Point):
-            sh = rois.Point(shape.x, shape.y, z=shape.the_z, c=shape.the_c,
-                            t=shape.the_t, label=shape.text,
-                            fill_color=fill_color, stroke_color=stroke_color,
-                            stroke_width=stroke_width)
+            sh = rois.Point(
+                shape.x,
+                shape.y,
+                z=shape.the_z,
+                c=shape.the_c,
+                t=shape.the_t,
+                label=shape.text,
+                fill_color=fill_color,
+                stroke_color=stroke_color,
+                stroke_width=stroke_width,
+            )
         elif isinstance(shape, Line):
             if shape.marker_start == Marker.ARROW:
                 mk_start = "Arrow"
@@ -477,38 +498,68 @@ def create_shapes(roi: ROI) -> List[Shape]:
                 mk_end = "Arrow"
             else:
                 mk_end = str(shape.marker_end)
-            sh = rois.Line(shape.x1, shape.y1, shape.x2, shape.y2,
-                           z=shape.the_z, c=shape.the_c, t=shape.the_t,
-                           label=shape.text, markerStart=mk_start,
-                           markerEnd=mk_end)
+            sh = rois.Line(
+                shape.x1,
+                shape.y1,
+                shape.x2,
+                shape.y2,
+                z=shape.the_z,
+                c=shape.the_c,
+                t=shape.the_t,
+                label=shape.text,
+                markerStart=mk_start,
+                markerEnd=mk_end,
+            )
         elif isinstance(shape, Rectangle):
-            sh = rois.Rectangle(shape.x, shape.y, shape.width, shape.height,
-                                z=shape.the_z, c=shape.the_c, t=shape.the_t,
-                                label=shape.text)
+            sh = rois.Rectangle(
+                shape.x,
+                shape.y,
+                shape.width,
+                shape.height,
+                z=shape.the_z,
+                c=shape.the_c,
+                t=shape.the_t,
+                label=shape.text,
+            )
         elif isinstance(shape, Ellipse):
-            sh = rois.Ellipse(shape.x, shape.y, shape.radius_x, shape.radius_y,
-                              z=shape.the_z, c=shape.the_c, t=shape.the_t,
-                              label=shape.text)
+            sh = rois.Ellipse(
+                shape.x,
+                shape.y,
+                shape.radius_x,
+                shape.radius_y,
+                z=shape.the_z,
+                c=shape.the_c,
+                t=shape.the_t,
+                label=shape.text,
+            )
         elif isinstance(shape, Polygon):
             points = []
             for pt in shape.points.split(" "):
                 # points sometimes come with a comma at the end...
                 pt = pt.rstrip(",")
                 points.append(tuple(float(x) for x in pt.split(",")))
-            sh = rois.Polygon(points, z=shape.the_z, c=shape.the_c,
-                              t=shape.the_t, label=shape.text)
+            sh = rois.Polygon(
+                points, z=shape.the_z, c=shape.the_c, t=shape.the_t, label=shape.text
+            )
         elif isinstance(shape, Polyline):
             points = []
             for pt in shape.points.split(" "):
                 # points sometimes come with a comma at the end...
                 pt = pt.rstrip(",")
                 points.append(tuple(float(x) for x in pt.split(",")))
-            sh = rois.Polyline(points, z=shape.the_z, c=shape.the_c,
-                               t=shape.the_t, label=shape.text)
+            sh = rois.Polyline(
+                points, z=shape.the_z, c=shape.the_c, t=shape.the_t, label=shape.text
+            )
         elif isinstance(shape, Label):
-            sh = rois.Label(shape.x, shape.y, z=shape.the_z, c=shape.the_c,
-                            t=shape.the_t, label=shape.text,
-                            fontSize=shape.font_size)
+            sh = rois.Label(
+                shape.x,
+                shape.y,
+                z=shape.the_z,
+                c=shape.the_c,
+                t=shape.the_t,
+                label=shape.text,
+                fontSize=shape.font_size,
+            )
         else:
             continue
         shapes.append(sh)
@@ -516,7 +567,7 @@ def create_shapes(roi: ROI) -> List[Shape]:
 
 
 def _int_to_rgba(omero_val: int) -> Tuple[int, int, int, int]:
-    """ Helper function returning the color as an Integer in RGBA encoding """
+    """Helper function returning the color as an Integer in RGBA encoding"""
     if omero_val < 0:
         omero_val = omero_val + (2**32)
     r = omero_val >> 24
@@ -527,15 +578,15 @@ def _int_to_rgba(omero_val: int) -> Tuple[int, int, int, int]:
     return (r, g, b, a)
 
 
-def create_rois(rois: List[ROI], imgs: List[Image], img_map: dict,
-                conn: BlitzGateway):
+def create_rois(rois: List[ROI], imgs: List[Image], img_map: dict, conn: BlitzGateway):
     for img in imgs:
         for roiref in img.roi_refs:
             roi = next(filter(lambda x: x.id == roiref.id, rois))
             shapes = create_shapes(roi)
             img_id_dest = img_map[img.id]
-            ezomero.post_roi(conn, img_id_dest, shapes, name=roi.name,
-                             description=roi.description)
+            ezomero.post_roi(
+                conn, img_id_dest, shapes, name=roi.name, description=roi.description
+            )
     return
 
 
@@ -555,8 +606,7 @@ def link_datasets(ome: OME, proj_map: dict, ds_map: dict, conn: BlitzGateway):
     return
 
 
-def link_plates(ome: OME, screen_map: dict, plate_map: dict,
-                conn: BlitzGateway):
+def link_plates(ome: OME, screen_map: dict, plate_map: dict, conn: BlitzGateway):
     for screen in ome.screens:
         screen_id = screen_map[screen.id]
         scr_obj = conn.getObject("Screen", screen_id)
@@ -586,9 +636,16 @@ def link_images(ome: OME, ds_map: dict, img_map: dict, conn: BlitzGateway):
     return
 
 
-def link_annotations(ome: OME, proj_map: dict, ds_map: dict, img_map: dict,
-                     ann_map: dict, scr_map: dict, pl_map: dict,
-                     conn: BlitzGateway):
+def link_annotations(
+    ome: OME,
+    proj_map: dict,
+    ds_map: dict,
+    img_map: dict,
+    ann_map: dict,
+    scr_map: dict,
+    pl_map: dict,
+    conn: BlitzGateway,
+):
     for proj in ome.projects:
         proj_id = proj_map[proj.id]
         proj_obj = conn.getObject("Project", proj_id)
@@ -639,8 +696,9 @@ def link_annotations(ome: OME, proj_map: dict, ds_map: dict, img_map: dict,
     return
 
 
-def link_one_annotation(obj: IObject, ann: Annotation, ann_map: dict,
-                        conn: BlitzGateway):
+def link_one_annotation(
+    obj: IObject, ann: Annotation, ann_map: dict, conn: BlitzGateway
+):
     ann_id = ann_map[ann.id]
     if isinstance(ann, TagAnnotation):
         ann_obj = conn.getObject("TagAnnotation", ann_id)
@@ -670,7 +728,7 @@ def rename_images(imgs: List[Image], img_map: dict, conn: BlitzGateway):
             im_obj.setName(img.name)
             im_obj.save()
         except KeyError:
-            print(f"Image corresponding to {img.id} not found. Skipping.")
+            logger.info(f"Image corresponding to {img.id} not found. Skipping.")
     return
 
 
@@ -682,25 +740,34 @@ def rename_plates(pls: List[Plate], pl_map: dict, conn: BlitzGateway):
             pl_obj.setName(pl.name)
             pl_obj.save()
         except KeyError:
-            print(f"Plate corresponding to {pl.id} not found. Skipping.")
+            logger.info(f"Plate corresponding to {pl.id} not found. Skipping.")
     return
 
 
-def populate_omero(ome: OME, img_map: dict, conn: BlitzGateway, hash: str,
-                   folder: str, metadata: List[str], merge: bool,
-                   figure: bool):
+def populate_omero(
+    ome: OME,
+    img_map: dict,
+    conn: BlitzGateway,
+    hash: str,
+    folder: str,
+    metadata: List[str],
+    merge: bool,
+    figure: bool,
+):
     plate_map, ome = create_plate_map(ome, img_map, conn)
     rename_images(ome.images, img_map, conn)
     rename_plates(ome.plates, plate_map, conn)
     proj_map = create_or_set_projects(ome.projects, conn, merge)
     ds_map = create_or_set_datasets(ome.datasets, ome.projects, conn, merge)
     screen_map = create_or_set_screens(ome.screens, conn, merge)
-    ann_map = create_annotations(ome.structured_annotations, conn,
-                                 hash, folder, figure, img_map, metadata)
+    ann_map = create_annotations(
+        ome.structured_annotations, conn, hash, folder, figure, img_map, metadata
+    )
     create_rois(ome.rois, ome.images, img_map, conn)
     link_plates(ome, screen_map, plate_map, conn)
     link_datasets(ome, proj_map, ds_map, conn)
     link_images(ome, ds_map, img_map, conn)
-    link_annotations(ome, proj_map, ds_map, img_map, ann_map,
-                     screen_map, plate_map, conn)
+    link_annotations(
+        ome, proj_map, ds_map, img_map, ann_map, screen_map, plate_map, conn
+    )
     return
